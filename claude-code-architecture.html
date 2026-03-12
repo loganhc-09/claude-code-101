@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>How Claude Code Works</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;0,9..144,700;0,9..144,800;1,9..144,400&family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --cream: #faf7f2;
+    --warm-white: #f5f0e8;
+    --paper: #efe9dd;
+    --ink: #2c2416;
+    --ink-soft: #5c5040;
+    --ink-muted: #8a7e6e;
+    --terracotta: #c4654a;
+    --terracotta-light: #f4ddd6;
+    --sage: #6b8f71;
+    --sage-light: #dce8dd;
+    --ochre: #c49a3c;
+    --ochre-light: #f5ebd0;
+    --slate-blue: #5b7b9a;
+    --slate-blue-light: #dce6ef;
+    --plum: #8b6a8a;
+    --plum-light: #ecdceb;
+    --border: #d8cfc2;
+    --border-light: #e8e0d4;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'DM Sans', -apple-system, sans-serif;
+    background: var(--cream);
+    color: var(--ink);
+    min-height: 100vh;
+    padding: 48px 24px 64px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .container {
+    max-width: 960px;
+    margin: 0 auto;
+  }
+
+  /* ── Header ── */
+  .header {
+    text-align: center;
+    margin-bottom: 56px;
+    padding-bottom: 40px;
+    border-bottom: 2px solid var(--border);
+    position: relative;
+  }
+
+  .header::after {
+    content: '';
+    position: absolute;
+    bottom: -6px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 60px;
+    height: 8px;
+    background: var(--terracotta);
+    border-radius: 4px;
+  }
+
+  .header .eyebrow {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--terracotta);
+    margin-bottom: 12px;
+  }
+
+  .header h1 {
+    font-family: 'Fraunces', serif;
+    font-size: 2.8rem;
+    font-weight: 800;
+    color: var(--ink);
+    line-height: 1.15;
+    margin-bottom: 12px;
+    letter-spacing: -0.02em;
+  }
+
+  .header p {
+    font-size: 1.1rem;
+    color: var(--ink-soft);
+    max-width: 520px;
+    margin: 0 auto;
+    line-height: 1.6;
+  }
+
+  /* ── Layer Sections ── */
+  .layer-section {
+    margin-bottom: 20px;
+    position: relative;
+  }
+
+  .layer-header {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    margin-bottom: 8px;
+  }
+
+  .layer-header h2 {
+    font-family: 'Fraunces', serif;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--ink);
+  }
+
+  .layer-header .badge {
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    padding: 4px 12px;
+    border-radius: 100px;
+    white-space: nowrap;
+  }
+
+  .layer-desc {
+    font-size: 0.95rem;
+    color: var(--ink-soft);
+    line-height: 1.6;
+    margin-bottom: 24px;
+    max-width: 640px;
+  }
+
+  /* ── Flow Connector (between sections) ── */
+  .flow-line {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 8px 0;
+    gap: 0;
+  }
+
+  .flow-line .stem {
+    width: 2px;
+    height: 24px;
+    background: var(--border);
+  }
+
+  .flow-line .arrow-down {
+    width: 0;
+    height: 0;
+    border-left: 7px solid transparent;
+    border-right: 7px solid transparent;
+    border-top: 9px solid var(--border);
+  }
+
+  .flow-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--ink-muted);
+    margin-top: 4px;
+  }
+
+  /* ── Brain Cards ── */
+  .brain-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+
+  @media (min-width: 720px) {
+    .brain-grid { grid-template-columns: repeat(4, 1fr); }
+  }
+
+  .brain-card {
+    background: white;
+    border: 1.5px solid var(--border-light);
+    border-radius: 14px;
+    padding: 22px 20px 20px;
+    position: relative;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .brain-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 24px rgba(44, 36, 22, 0.08);
+  }
+
+  .brain-card .card-stripe {
+    position: absolute;
+    top: 0;
+    left: 16px;
+    right: 16px;
+    height: 3px;
+    border-radius: 0 0 3px 3px;
+  }
+
+  .brain-card .card-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    margin-bottom: 14px;
+  }
+
+  .brain-card .card-type {
+    font-size: 0.68rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 4px;
+  }
+
+  .brain-card h3 {
+    font-family: 'Fraunces', serif;
+    font-size: 1.15rem;
+    font-weight: 700;
+    margin-bottom: 8px;
+    color: var(--ink);
+  }
+
+  .brain-card .card-body {
+    font-size: 0.84rem;
+    color: var(--ink-soft);
+    line-height: 1.55;
+    margin-bottom: 14px;
+  }
+
+  .brain-card .card-examples {
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 0.78rem;
+    font-family: 'DM Sans', monospace;
+    line-height: 1.7;
+    font-weight: 500;
+  }
+
+  /* Card color variants */
+  .card--sage .card-stripe { background: var(--sage); }
+  .card--sage .card-icon { background: var(--sage-light); color: var(--sage); }
+  .card--sage .card-type { color: var(--sage); }
+  .card--sage .card-examples { background: var(--sage-light); color: #3d5e42; }
+
+  .card--plum .card-stripe { background: var(--plum); }
+  .card--plum .card-icon { background: var(--plum-light); color: var(--plum); }
+  .card--plum .card-type { color: var(--plum); }
+  .card--plum .card-examples { background: var(--plum-light); color: #5e3d5d; }
+
+  .card--terracotta .card-stripe { background: var(--terracotta); }
+  .card--terracotta .card-icon { background: var(--terracotta-light); color: var(--terracotta); }
+  .card--terracotta .card-type { color: var(--terracotta); }
+  .card--terracotta .card-examples { background: var(--terracotta-light); color: #7a3a2d; }
+
+  .card--blue .card-stripe { background: var(--slate-blue); }
+  .card--blue .card-icon { background: var(--slate-blue-light); color: var(--slate-blue); }
+  .card--blue .card-type { color: var(--slate-blue); }
+  .card--blue .card-examples { background: var(--slate-blue-light); color: #3b5568; }
+
+  /* ── Knowledge Base ── */
+  .kb-box {
+    background: white;
+    border: 1.5px solid var(--border-light);
+    border-radius: 14px;
+    padding: 24px 28px;
+    display: flex;
+    align-items: stretch;
+    gap: 20px;
+  }
+
+  .kb-visual {
+    flex-shrink: 0;
+    width: 100px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 16px 8px;
+    background: var(--sage-light);
+    border-radius: 10px;
+    border: 1.5px solid #c2d6c4;
+  }
+
+  .kb-visual svg {
+    width: 32px;
+    height: 32px;
+    color: var(--sage);
+  }
+
+  .kb-visual .kb-icon-label {
+    font-size: 0.68rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #3d5e42;
+  }
+
+  .kb-content {
+    flex: 1;
+  }
+
+  .kb-content h3 {
+    font-family: 'Fraunces', serif;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--ink);
+    margin-bottom: 6px;
+  }
+
+  .kb-content p {
+    font-size: 0.88rem;
+    color: var(--ink-soft);
+    line-height: 1.6;
+    margin-bottom: 14px;
+  }
+
+  .kb-examples {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .kb-example {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    background: var(--sage-light);
+    border-radius: 8px;
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: #3d5e42;
+  }
+
+  .kb-example .kb-arrow {
+    color: var(--sage);
+    font-weight: 700;
+  }
+
+  /* ── Connector Chips ── */
+  .connector-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .connector-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    background: white;
+    border: 1.5px solid var(--border-light);
+    border-radius: 100px;
+    font-size: 0.88rem;
+    font-weight: 500;
+    color: var(--ink);
+    transition: all 0.2s ease;
+  }
+
+  .connector-chip:hover {
+    border-color: var(--ochre);
+    background: var(--ochre-light);
+    transform: translateY(-1px);
+  }
+
+  .connector-chip .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--ochre);
+  }
+
+  .connector-plus {
+    padding: 10px 20px;
+    border: 1.5px dashed var(--border);
+    border-radius: 100px;
+    font-size: 0.85rem;
+    color: var(--ink-muted);
+    font-style: italic;
+  }
+
+  /* ── MCP Foundation ── */
+  .mcp-box {
+    background: white;
+    border: 1.5px solid var(--border-light);
+    border-radius: 14px;
+    padding: 28px 28px;
+    display: flex;
+    align-items: flex-start;
+    gap: 24px;
+  }
+
+  .mcp-icon {
+    flex-shrink: 0;
+    width: 56px;
+    height: 56px;
+    border-radius: 14px;
+    background: var(--slate-blue-light);
+    border: 1.5px solid #c5d5e2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .mcp-icon svg {
+    width: 28px;
+    height: 28px;
+    color: var(--slate-blue);
+  }
+
+  .mcp-content h3 {
+    font-family: 'Fraunces', serif;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--ink);
+    margin-bottom: 6px;
+  }
+
+  .mcp-content p {
+    font-size: 0.88rem;
+    color: var(--ink-soft);
+    line-height: 1.6;
+  }
+
+  /* ── Summary / Takeaway ── */
+  .summary {
+    margin-top: 44px;
+    padding: 32px;
+    background: var(--warm-white);
+    border: 1.5px solid var(--border);
+    border-radius: 14px;
+    position: relative;
+  }
+
+  .summary::before {
+    content: 'The bottom line';
+    position: absolute;
+    top: -11px;
+    left: 28px;
+    background: var(--warm-white);
+    padding: 0 12px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--terracotta);
+  }
+
+  .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+  }
+
+  @media (max-width: 600px) {
+    .summary-grid { grid-template-columns: 1fr; }
+  }
+
+  .summary-item {
+    text-align: center;
+    padding: 16px 12px;
+  }
+
+  .summary-item:not(:last-child) {
+    border-right: 1.5px solid var(--border);
+  }
+
+  @media (max-width: 600px) {
+    .summary-item:not(:last-child) {
+      border-right: none;
+      border-bottom: 1.5px solid var(--border);
+      padding-bottom: 20px;
+    }
+  }
+
+  .summary-item .num {
+    font-family: 'Fraunces', serif;
+    font-size: 1.6rem;
+    font-weight: 800;
+    color: var(--terracotta);
+    margin-bottom: 4px;
+  }
+
+  .summary-item .label {
+    font-size: 0.84rem;
+    color: var(--ink-soft);
+    line-height: 1.5;
+  }
+
+  /* ── Subtle page texture ── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg width='40' height='40' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.015'/%3E%3C/svg%3E");
+    background-repeat: repeat;
+    z-index: 999;
+    opacity: 0.5;
+  }
+
+  /* ── Print / presentation friendly ── */
+  @media print {
+    body { background: white; padding: 20px; }
+    body::before { display: none; }
+    .brain-card:hover { transform: none; box-shadow: none; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="eyebrow">Workshop Guide</div>
+    <h1>How Claude Code Works</h1>
+    <p>One AI, many superpowers. Here's how the pieces fit together&nbsp;&mdash;&nbsp;and what each one does for you.</p>
+  </div>
+
+  <!-- ━━━ LAYER 1: BRAIN ━━━ -->
+  <div class="layer-section">
+    <div class="layer-header">
+      <h2>The Capabilities</h2>
+      <span class="badge" style="background: var(--sage-light); color: #3d5e42;">Inside Claude's brain</span>
+    </div>
+    <p class="layer-desc">These are the different ways Claude can think and work. Each one is a different mode of operating&nbsp;&mdash;&nbsp;and you can combine them.</p>
+
+    <div class="brain-grid">
+      <!-- Skills -->
+      <div class="brain-card card--sage">
+        <div class="card-stripe"></div>
+        <div class="card-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+        </div>
+        <div class="card-type">Playbooks</div>
+        <h3>Skills</h3>
+        <p class="card-body">Reusable recipes you invoke with a slash command. One command runs an entire expert workflow.</p>
+        <div class="card-examples">/copywriting<br>/process-call<br>/seo-audit</div>
+      </div>
+
+      <!-- Subagents -->
+      <div class="brain-card card--plum">
+        <div class="card-stripe"></div>
+        <div class="card-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        </div>
+        <div class="card-type">Delegated workers</div>
+        <h3>Subagents</h3>
+        <p class="card-body">Claude spawns mini-Claudes to research, analyze, or build in parallel while you keep going.</p>
+        <div class="card-examples">"Research my inbox"<br>"Scan this codebase"<br>"Audit these files"</div>
+      </div>
+
+      <!-- Plugins -->
+      <div class="brain-card card--terracotta">
+        <div class="card-stripe"></div>
+        <div class="card-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+        </div>
+        <div class="card-type">Installable extensions</div>
+        <h3>Plugins</h3>
+        <p class="card-body">Third-party packages that add new skills and capabilities. Like apps for your AI.</p>
+        <div class="card-examples">ralph-loop<br>frontend-design<br>playground</div>
+      </div>
+
+      <!-- Hooks -->
+      <div class="brain-card card--blue">
+        <div class="card-stripe"></div>
+        <div class="card-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        </div>
+        <div class="card-type">Auto-triggers</div>
+        <h3>Hooks</h3>
+        <p class="card-body">Commands that fire automatically on events. Tripwires that keep your system running behind the scenes.</p>
+        <div class="card-examples">Session start &rarr; briefing<br>Session end &rarr; save log<br>Pre-commit &rarr; lint check</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FLOW LINE -->
+  <div class="flow-line">
+    <div class="stem"></div>
+    <div class="arrow-down"></div>
+    <div class="flow-label">reads &amp; writes to</div>
+  </div>
+
+  <!-- ━━━ LAYER 1.5: KNOWLEDGE BASE ━━━ -->
+  <div class="layer-section">
+    <div class="layer-header">
+      <h2>Your Knowledge Base</h2>
+      <span class="badge" style="background: var(--sage-light); color: #3d5e42;">Persistent memory</span>
+    </div>
+    <p class="layer-desc">Claude doesn't just chat&nbsp;&mdash;&nbsp;it reads from and writes back to your personal knowledge base. This is where context lives between sessions.</p>
+
+    <div class="kb-box">
+      <div class="kb-visual">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        <span class="kb-icon-label">Your vault</span>
+      </div>
+      <div class="kb-content">
+        <h3>Obsidian, Notion, Google Drive&nbsp;&mdash;&nbsp;wherever you keep your stuff</h3>
+        <p>Claude reads your notes, docs, and files to understand your world. It writes meeting notes, research, and decisions back. Your knowledge base is what makes the AI <em>yours</em>&nbsp;&mdash;&nbsp;not generic.</p>
+        <div class="kb-examples">
+          <span class="kb-example">Meeting notes <span class="kb-arrow">&harr;</span> auto-captured</span>
+          <span class="kb-example">Project docs <span class="kb-arrow">&harr;</span> always current</span>
+          <span class="kb-example">Session logs <span class="kb-arrow">&harr;</span> searchable memory</span>
+          <span class="kb-example">Tasks &amp; decisions <span class="kb-arrow">&harr;</span> tracked</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FLOW LINE -->
+  <div class="flow-line">
+    <div class="stem"></div>
+    <div class="arrow-down"></div>
+    <div class="flow-label">connects to your apps via</div>
+  </div>
+
+  <!-- ━━━ LAYER 2: CONNECTORS ━━━ -->
+  <div class="layer-section">
+    <div class="layer-header">
+      <h2>Connectors</h2>
+      <span class="badge" style="background: var(--ochre-light); color: #7a6020;">Pre-built bridges</span>
+    </div>
+    <p class="layer-desc">Plug-and-play integrations to your existing apps. Connect once, use everywhere.</p>
+
+    <div class="connector-row">
+      <div class="connector-chip"><span class="dot"></span>Gmail</div>
+      <div class="connector-chip"><span class="dot"></span>Google Calendar</div>
+      <div class="connector-chip"><span class="dot"></span>Slack</div>
+      <div class="connector-chip"><span class="dot"></span>Notion</div>
+      <div class="connector-chip"><span class="dot"></span>Canva</div>
+      <div class="connector-chip"><span class="dot"></span>GitHub</div>
+      <div class="connector-chip"><span class="dot"></span>Chrome</div>
+      <div class="connector-plus">+ anything with an API</div>
+    </div>
+  </div>
+
+  <!-- FLOW LINE -->
+  <div class="flow-line">
+    <div class="stem"></div>
+    <div class="arrow-down"></div>
+    <div class="flow-label">all powered by</div>
+  </div>
+
+  <!-- ━━━ LAYER 3: MCP ━━━ -->
+  <div class="layer-section">
+    <div class="layer-header">
+      <h2>MCP</h2>
+      <span class="badge" style="background: var(--slate-blue-light); color: #3b5568;">The universal language</span>
+    </div>
+
+    <div class="mcp-box">
+      <div class="mcp-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+      </div>
+      <div class="mcp-content">
+        <h3>Model Context Protocol &mdash; think USB-C for AI</h3>
+        <p>One open standard that lets Claude talk to any tool, any app, any data source. Before MCP, every integration was custom-built. Now there's one universal plug. This is what makes all the connectors above possible&nbsp;&mdash;&nbsp;and why new ones keep appearing every week.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ━━━ SUMMARY ━━━ -->
+  <div class="summary">
+    <div class="summary-grid">
+      <div class="summary-item">
+        <div class="num">1 person</div>
+        <div class="label">doing the work of an entire team&nbsp;&mdash;&nbsp;assistant, analyst, strategist, marketer</div>
+      </div>
+      <div class="summary-item">
+        <div class="num">Overnight</div>
+        <div class="label">your dashboard builds itself while you sleep, pulling real data from real sources</div>
+      </div>
+      <div class="summary-item">
+        <div class="num">Yours</div>
+        <div class="label">personalized to your company, your data, your workflow&nbsp;&mdash;&nbsp;not a generic template</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
